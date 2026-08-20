@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedSim AI - Clinical Case Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    
+    /* Custom thin scrollbar for model dropdown */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #0f172a; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #10b981; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col" onclick="closeAllDropdowns(event)">
+
+  <!-- Header -->
+  <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700 sticky top-0 z-30 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+    <div class="flex items-center gap-3">
+      <div class="bg-emerald-500/10 text-emerald-400 p-2.5 rounded-xl border border-emerald-500/20">
+        <i class="fa-solid fa-brain-circuit text-xl text-emerald-400"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight text-white">MedSim AI Studio</h1>
+        <p class="text-xs text-slate-400">Standard Textbooks (Robbins, KDT, Ananthanarayan)</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-3 flex-wrap">
+      
+      <!-- Custom Scrollable Model Picker -->
+      <div class="relative" onclick="event.stopPropagation()">
+        <button id="model-picker-btn" onclick="toggleModelDropdown()" class="flex items-center justify-between gap-2.5 bg-slate-950/80 border border-slate-700 hover:border-emerald-500/60 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-200 transition min-w-[200px]">
+          <div class="flex items-center gap-2 truncate">
+            <i class="fa-solid fa-microchip text-emerald-400 text-xs"></i>
+            <span id="selected-model-label" class="truncate">gemini-1.5-flash</span>
+          </div>
+          <i id="picker-chevron" class="fa-solid fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
+        </button>
+
+        <!-- Dropdown Menu with Vertical Scroll -->
+        <div id="model-dropdown-menu" class="hidden absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Available AI Models</span>
+            <button onclick="fetchAvailableModels()" title="Sync models with your API key" class="text-xs text-slate-400 hover:text-emerald-400 transition flex items-center gap-1">
+              <i id="sync-icon" class="fa-solid fa-arrows-rotate"></i> Sync
+            </button>
+          </div>
+          
+          <!-- Scrollable Options Container -->
+          <div id="model-list-container" class="max-h-60 overflow-y-auto p-1.5 space-y-1 custom-scroll">
+            <!-- Dynamic model options will inject here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- API Key Modal Trigger -->
+      <button onclick="openApiModal()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-2 rounded-xl text-slate-300 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-key text-amber-400"></i> <span id="api-status-text">Set API Key</span>
+      </button>
+
+      <!-- Generate Button -->
+      <button id="gen-btn" onclick="generateCase()" class="bg-emerald-600 hover:bg-emerald-500 transition px-4 py-2 rounded-xl font-medium text-sm text-white flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Generate New Case</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-4xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-grow">
+
+    <!-- Category Filters -->
+    <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+      <button onclick="setCategory('Random Mix')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 text-white border border-emerald-500" data-cat="Random Mix">Random Mix</button>
+      <button onclick="setCategory('Infectious Diseases')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700" data-cat="Infectious Diseases">Infectious Diseases</button>
+      <button onclick="setCategory('Cardiology')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700" data-cat="Cardiology">Cardiology</button>
+      <button onclick="setCategory('Respiratory')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700" data-cat="Respiratory">Respiratory</button>
+      <button onclick="setCategory('Nephrology & Urology')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700" data-cat="Nephrology & Urology">Nephrology</button>
+      <button onclick="setCategory('Neurology & CNS')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700" data-cat="Neurology & CNS">Neurology</button>
+      <button onclick="setCategory('Hematology')" class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700" data-cat="Hematology">Hematology</button>
+    </div>
+
+    <!-- Case Scenario Card -->
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4 relative overflow-hidden">
+      
+      <!-- Loading Overlay -->
+      <div id="loader" class="hidden absolute inset-0 bg-slate-900/85 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20">
+        <div class="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+        <p id="loading-msg" class="text-sm font-medium text-emerald-400">Synthesizing clinical case scenario...</p>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <span id="case-badge" class="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs px-3 py-1 rounded-full font-medium">Infectious</span>
+        <span id="active-model-tag" class="text-xs text-slate-400 font-mono">Model: gemini-1.5-flash</span>
+      </div>
+      
+      <h2 id="case-title" class="text-xl font-bold text-slate-100">Ready to Generate</h2>
+      <p id="case-presentation" class="text-slate-300 leading-relaxed text-sm sm:text-base font-normal">
+        Select any model from the scrollable dropdown above and click "Generate New Case" to create an authentic scenario with vitals, pathology, microbiology, and pharmacology.
+      </p>
+
+      <!-- Vitals Block -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+        <div class="bg-slate-900/60 border border-slate-700/50 p-3 rounded-xl">
+          <span class="text-xs text-slate-400 block mb-0.5">Blood Pressure</span>
+          <span id="vital-bp" class="text-sm font-semibold text-slate-200">--</span>
+        </div>
+        <div class="bg-slate-900/60 border border-slate-700/50 p-3 rounded-xl">
+          <span class="text-xs text-slate-400 block mb-0.5">Pulse Rate</span>
+          <span id="vital-hr" class="text-sm font-semibold text-slate-200">--</span>
+        </div>
+        <div class="bg-slate-900/60 border border-slate-700/50 p-3 rounded-xl">
+          <span class="text-xs text-slate-400 block mb-0.5">Temperature</span>
+          <span id="vital-temp" class="text-sm font-semibold text-slate-200">--</span>
+        </div>
+        <div class="bg-slate-900/60 border border-slate-700/50 p-3 rounded-xl">
+          <span class="text-xs text-slate-400 block mb-0.5">SpO₂</span>
+          <span id="vital-spo2" class="text-sm font-semibold text-slate-200">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Collapsible Sections -->
+    <div class="space-y-3">
+      
+      <!-- Pathology & Lab Section -->
+      <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <button onclick="toggleSection('path-content', 'path-icon')" class="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-750 transition">
+          <span class="font-semibold text-sm sm:text-base text-rose-400 flex items-center gap-2.5">
+            <i class="fa-solid fa-microscope text-rose-400"></i> Lab Diagnosis & Pathology Findings
+          </span>
+          <i id="path-icon" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+        </button>
+        <div id="path-content" class="hidden px-5 pb-5 pt-1 border-t border-slate-700/40 text-sm text-slate-300 space-y-2 bg-slate-800/50">
+          <div id="case-pathology">Click generate to view findings.</div>
+        </div>
+      </div>
+
+      <!-- Microbiology Section -->
+      <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <button onclick="toggleSection('micro-content', 'micro-icon')" class="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-750 transition">
+          <span class="font-semibold text-sm sm:text-base text-amber-400 flex items-center gap-2.5">
+            <i class="fa-solid fa-bacterium text-amber-400"></i> Microbiology & Culture Details
+          </span>
+          <i id="micro-icon" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+        </button>
+        <div id="micro-content" class="hidden px-5 pb-5 pt-1 border-t border-slate-700/40 text-sm text-slate-300 space-y-2 bg-slate-800/50">
+          <div id="case-microbiology">Click generate to view findings.</div>
+        </div>
+      </div>
+
+      <!-- Final Diagnosis & Pharmacology Section -->
+      <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <button onclick="toggleSection('pharm-content', 'pharm-icon')" class="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-750 transition">
+          <span class="font-semibold text-sm sm:text-base text-emerald-400 flex items-center gap-2.5">
+            <i class="fa-solid fa-pills text-emerald-400"></i> Final Diagnosis & Pharmacology Management
+          </span>
+          <i id="pharm-icon" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+        </button>
+        <div id="pharm-content" class="hidden px-5 pb-5 pt-1 border-t border-slate-700/40 text-sm text-slate-300 space-y-3 bg-slate-800/50">
+          <div id="case-diagnosis" class="font-bold text-emerald-300"></div>
+          <div id="case-pharmacology">Click generate to view findings.</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal for API Key Input -->
+  <div id="api-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
+      <h3 class="text-lg font-bold text-white flex items-center gap-2">
+        <i class="fa-solid fa-key text-amber-400"></i> Setup Gemini API Key
+      </h3>
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Your key is stored locally in your browser (<code class="bg-slate-900 px-1 py-0.5 rounded text-emerald-400">localStorage</code>). Once saved, the app auto-syncs every Gemini model accessible to your key.
+      </p>
+      <input id="api-key-input" type="password" placeholder="Paste your API key here" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeApiModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="saveApiKey()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-semibold text-white">Save Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    let selectedCategory = "Random Mix";
+    let selectedModel = localStorage.getItem('gemini_selected_model') || "gemini-1.5-flash";
+    let defaultFallbackModels = [
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+      "gemini-1.5-pro",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+      "gemini-2.5-flash"
+    ];
+
+    function toggleModelDropdown() {
+      const menu = document.getElementById('model-dropdown-menu');
+      const chevron = document.getElementById('picker-chevron');
+      menu.classList.toggle('hidden');
+      chevron.classList.toggle('rotate-180');
+    }
+
+    function closeAllDropdowns(event) {
+      const menu = document.getElementById('model-dropdown-menu');
+      const chevron = document.getElementById('picker-chevron');
+      if (!menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+        chevron.classList.remove('rotate-180');
+      }
+    }
+
+    function updateApiStatus() {
+      const key = localStorage.getItem('gemini_api_key');
+      const statusText = document.getElementById('api-status-text');
+      if (key) {
+        statusText.innerText = "API Key Active";
+        statusText.classList.add("text-emerald-400");
+      } else {
+        statusText.innerText = "Set API Key";
+        statusText.classList.remove("text-emerald-400");
+      }
+    }
+
+    function openApiModal() {
+      document.getElementById('api-modal').classList.remove('hidden');
+      document.getElementById('api-key-input').value = localStorage.getItem('gemini_api_key') || '';
+    }
+
+    function closeApiModal() {
+      document.getElementById('api-modal').classList.add('hidden');
+    }
+
+    async function saveApiKey() {
+      const key = document.getElementById('api-key-input').value.trim();
+      if (key) {
+        localStorage.setItem('gemini_api_key', key);
+      } else {
+        localStorage.removeItem('gemini_api_key');
+      }
+      updateApiStatus();
+      closeApiModal();
+      if (key) await fetchAvailableModels();
+    }
+
+    function selectModel(modelName) {
+      selectedModel = modelName;
+      localStorage.setItem('gemini_selected_model', modelName);
+      document.getElementById('selected-model-label').innerText = modelName;
+      document.getElementById('active-model-tag').innerText = `Model: ${modelName}`;
+      renderModelList(window.availableModelList || defaultFallbackModels);
+      toggleModelDropdown();
+    }
+
+    function renderModelList(models) {
+      const container = document.getElementById('model-list-container');
+      container.innerHTML = '';
+
+      models.forEach(model => {
+        const isSelected = (model === selectedModel);
+        const item = document.createElement('div');
+        item.className = `px-3 py-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition ${
+          isSelected 
+            ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30' 
+            : 'hover:bg-slate-800 text-slate-300'
+        }`;
+        item.onclick = () => selectModel(model);
+        item.innerHTML = `
+          <span class="truncate">${model}</span>
+          ${isSelected ? '<i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>' : ''}
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    async function fetchAvailableModels() {
+      const apiKey = localStorage.getItem('gemini_api_key');
+      const syncIcon = document.getElementById('sync-icon');
+      if (syncIcon) syncIcon.classList.add('fa-spin');
+
+      if (!apiKey) {
+        window.availableModelList = defaultFallbackModels;
+        renderModelList(defaultFallbackModels);
+        if (syncIcon) syncIcon.classList.remove('fa-spin');
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const data = await response.json();
+
+        if (data.models && data.models.length > 0) {
+          const geminiModels = data.models
+            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
+            .map(m => m.name.replace('models/', ''))
+            .filter(name => name.startsWith('gemini'));
+
+          if (geminiModels.length > 0) {
+            window.availableModelList = geminiModels;
+            if (!geminiModels.includes(selectedModel)) {
+              selectedModel = geminiModels[0];
+            }
+            renderModelList(geminiModels);
+            document.getElementById('selected-model-label').innerText = selectedModel;
+            document.getElementById('active-model-tag').innerText = `Model: ${selectedModel}`;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not retrieve remote models. Falling back to presets.", err);
+        window.availableModelList = defaultFallbackModels;
+        renderModelList(defaultFallbackModels);
+      } finally {
+        if (syncIcon) syncIcon.classList.remove('fa-spin');
+      }
+    }
+
+    function setCategory(cat) {
+      selectedCategory = cat;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-cat') === cat) {
+          btn.className = "filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 text-white border border-emerald-500";
+        } else {
+          btn.className = "filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700";
+        }
+      });
+    }
+
+    function toggleSection(contentId, iconId) {
+      const content = document.getElementById(contentId);
+      const icon = document.getElementById(iconId);
+      content.classList.toggle('hidden');
+      icon.classList.toggle('rotate-180');
+    }
+
+    async function generateCase() {
+      const apiKey = localStorage.getItem('gemini_api_key');
+      if (!apiKey) {
+        openApiModal();
+        return;
+      }
+
+      const loader = document.getElementById('loader');
+      const genBtn = document.getElementById('gen-btn');
+      loader.classList.remove('hidden');
+      genBtn.disabled = true;
+
+      const prompt = `You are a medical professor designing a clinical case challenge for medical students.
+Generate a realistic, high-yield clinical case scenario in the category: "${selectedCategory}".
+The concepts must strictly reflect standard medical textbooks: Robbins & Cotran Pathologic Basis of Disease, KD Tripathi Essentials of Medical Pharmacology, and Ananthanarayan and Paniker's Textbook of Microbiology.
+
+Return ONLY a valid JSON object matching this exact schema (no markdown formatting, no backticks, just raw JSON):
+{
+  "category": "${selectedCategory}",
+  "title": "Short descriptive case headline",
+  "presentation": "Detailed clinical presentation history and examination findings (2-3 sentences)",
+  "vitals": {
+    "bp": "e.g. 130/85 mmHg",
+    "hr": "e.g. 88 bpm",
+    "temp": "e.g. 101.4 F",
+    "spo2": "e.g. 96%"
+  },
+  "pathology": "High-yield pathology, gross/microscopic features, biopsy, or lab blood tests",
+  "microbiology": "Microbiology findings, staining, specific media, or serology/molecular tests (or 'Non-infectious etiology' if not applicable)",
+  "diagnosis": "Exact Definitive Diagnosis",
+  "pharmacology": "First-line drug regimen (DOC), dosage/mechanism of action, and high-yield pharmacological 
